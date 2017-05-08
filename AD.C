@@ -101,7 +101,8 @@ void AD_Handle(void)
 //		adfloat[2] = (adfloat[2] )*237.3/(7.5-adfloat[2]);	
 		for(i=0;i<CH_MAX;i++)
 		{
-			adfloat[i]*=10;		
+			adfloat[i]*=10;	
+			adfloat[i]+=bsItem[i].sc;	
 			adInfoCopy.pv[i]=(int)(adfloat[i]);
 		}	
 		if(adInfoCopy.pv[1]>980)

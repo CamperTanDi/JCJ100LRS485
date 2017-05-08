@@ -1,4 +1,4 @@
-
+﻿
 #include "main.h"
 #include "i2_rw.h"
 #include "uart_0.h"

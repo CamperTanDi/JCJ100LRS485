@@ -3,7 +3,7 @@
 
 #define GETMAX 			8
 #define READ 			3
-#define READONLY 		4
+#define READONLY 		4//∂¡ ‰»Îºƒ¥Ê∆˜
 #define WRITE 			6
 #define DATAMAX1 		2
 #define DATAMAX2		4

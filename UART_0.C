@@ -94,13 +94,27 @@ bit Uart0_Handle(void)
 	long longtmp=0;
 	if(getcount!=8 && getcount!=3)
 	{getcount=0;return 0;}
-	if(getcount==8)cop=1;
-	getcount=0;		
+	if(getcount==8)
+		cop=1;
+	getcount=0;
 	if(getdata[0]!=parItem.Addr)
 	{
-		if(getdata[1]!=WRITE || getdata[0]!=0)return 0;	
+		if(getdata[1]!=WRITE || getdata[0]!=0 || cop!=1)
+			return 0;
 	}
-	if(cop)	
+/************************************************
+ * 支持的modbus命令集：
+ *读温度
+ *读温湿度
+ *读从机地址
+ *写从机地址
+ *
+ *
+ *
+ *读双通道修正值
+ *写双通道修正值
+ ************************************************/
+	if(cop)
 	{
 		if((getdata[1]!=READ)&&(getdata[1]!=READONLY)&&(getdata[1]!=WRITE))return 0;
 		me_crc=modbusCRC((unsigned char *)getdata,6);	
@@ -108,7 +122,7 @@ bit Uart0_Handle(void)
 		if(it_crc!=me_crc)return 0;
 		meteraddr=getdata[2]<<8|getdata[3];
 		meterlong=getdata[4]<<8|getdata[5];
-		switch(getdata[1])
+		switch(getdata[1])//上位机命令
 		{			
 			case READONLY://读输入寄存器
 				if(meterlong==0)return 0;
@@ -124,27 +138,40 @@ bit Uart0_Handle(void)
 				if(meterlong==0)return 0;	
 				if(meteraddr<ADDR_PAR_COUNT)
 				{
-					if(meteraddr+meterlong>DATAMAX1)return 0;
-					for(i=0;i<meterlong;i++)
-					{					
-						inttmp=*(&parItem.Addr+meteraddr+i);					
-						senddata[3+i*2]=(unsigned char)(inttmp>>8);
-						senddata[4+i*2]=(unsigned char)inttmp;		
-					}	
-				}				
+					if(meteraddr+meterlong<=DATAMAX1){
+						for(i=0;i<meterlong;i++){//0地址为本机地址，1地址为波特率
+							inttmp=*(&parItem.Addr+meteraddr+i);
+							senddata[3+i*2]=(unsigned char)(inttmp>>8);
+							senddata[4+i*2]=(unsigned char)inttmp;
+						}
+					}
+					else if(meteraddr>=2 && meteraddr+meterlong<=4){
+						for(i=0; i<meterlong; i++){//2、3地址为修正值
+							inttmp=*(&bsItem[meteraddr%2].sc);
+							senddata[3+i*2]=(unsigned char)(inttmp>>8);
+							senddata[4+i*2]=(unsigned char)inttmp;
+						}
+					}
+					else{
+						return 0}
+				}
 				else if(meteraddr>=3*ADDR_PAR_COUNT && meteraddr<4*ADDR_PAR_COUNT)
 				{
+					/*
 					meteraddr%=ADDR_PAR_COUNT;
 					if(meteraddr+meterlong>DATAMAX4)return 0;						
-					for(i=0;i<meterlong;i++)
+					for(i=0;i<meterlong;i++)//
 					{					
 						inttmp=*(&bsItem[0].bsl+meteraddr+i);
 						senddata[3+i*2]=(unsigned char)(inttmp>>8);
 						senddata[4+i*2]=(unsigned char)inttmp;		
 					}	
+					*/
+					return 0;
 				}
 				else if(meteraddr>=4*ADDR_PAR_COUNT && meteraddr<5*ADDR_PAR_COUNT)
 				{
+					/*
 					meteraddr%=ADDR_PAR_COUNT;
 					if(meteraddr+meterlong>DATAMAX5)return 0;
 					for(i=0;i<meterlong;i++)
@@ -155,7 +182,9 @@ bit Uart0_Handle(void)
 							inttmp=*(&parItem.jzflag+meteraddr+i-4);
 						senddata[3+i*2]=(unsigned char)(inttmp>>8);
 						senddata[4+i*2]=(unsigned char)inttmp;		
-					}	
+					}
+					*/
+				return 0;	
 				}
 				else 
 					return 0;							
@@ -163,38 +192,49 @@ bit Uart0_Handle(void)
 			case WRITE:			
 				if(meteraddr<ADDR_PAR_COUNT)
 				{
-					if(meteraddr>=DATAMAX1)return 0;								
+					if(meteraddr>=DATAMAX1){
+						if(meteraddr+meterlong<=4){
+						*(&bsItem[meteraddr%2].sc)=meterlong;
+						}
+						else return 0;
+					}
 					I2_Write((EE_ADDR+meteraddr)*2,(unsigned char *)&meterlong,2);	
-					*(&parItem.Addr+meteraddr)=meterlong;				
+					*(&parItem.Addr+meteraddr)=meterlong;
 					if(meteraddr==BAUD_ADDR)
 					{
 						uartinitflag=1;
 					}
-				}			
+				}
 				else if(meteraddr>=3*ADDR_PAR_COUNT && meteraddr<4*ADDR_PAR_COUNT)
 				{
-					meteraddr%=ADDR_PAR_COUNT;	
+					/*
+					meteraddr%=ADDR_PAR_COUNT;
 					if(meteraddr>=DATAMAX4)return 0;
-					I2_Write((EE_BSL+meteraddr)*2,(unsigned char *)&meterlong,2);	
-					*(&bsItem[0].bsl+meteraddr)=meterlong;	
-				}		
+					I2_Write((EE_BSL+meteraddr)*2,(unsigned char *)&meterlong,2);
+					*(&bsItem[0].bsl+meteraddr)=meterlong;
+					*/
+					return 0;
+				}
 				else if(meteraddr>=4*ADDR_PAR_COUNT && meteraddr<5*ADDR_PAR_COUNT)
 				{
+					/*
 					meteraddr%=ADDR_PAR_COUNT;
 					if(meteraddr>=DATAMAX5)return 0;						
 					I2_Write((EE_BSLVALUE+meteraddr)*2,(unsigned char *)&meterlong,2);
 					if(meteraddr<4)
 						*(&bsItem[meteraddr/2].bslvalue+meteraddr%2)=meterlong;					
 					else 
-						*(&parItem.jzflag+meteraddr-4)=meterlong;					
+						*(&parItem.jzflag+meteraddr-4)=meterlong;
+					*/
+					return 0;
 				}
 				else
 					return 0;						
 				break;
-		}	
+		}
 		if(getdata[0]==0)return 0;//广播地址不返回数据
 		senddata[0]=getdata[0];
-		senddata[1]=getdata[1];	
+		senddata[1]=getdata[1];
 		if(getdata[1]==READ || getdata[1]==READONLY)
 		{			
 			senddata[2]=meterlong*2;
@@ -212,7 +252,7 @@ bit Uart0_Handle(void)
 			sendmax=8;
 		}
 	}
-	else
+	else//收到3位modbus信号
 	{
 		if(getdata[1]!=0)return 0;
 		me_crc=juscanCRC((unsigned char *)getdata,2);

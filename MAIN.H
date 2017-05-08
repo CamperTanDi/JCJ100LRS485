@@ -49,6 +49,7 @@ typedef struct {
 	int bsh;
 	int bslvalue;
 	int bshvalue;
+	int sc;
 }_bsItem;
 extern volatile _bsItem bsItem[2];
 #endif
